@@ -17,6 +17,10 @@ import AppKit
 import UIKit
 #endif
 
+public extension NSAttributedString.Key {
+    static let macLink: NSAttributedString.Key = .init("macLink")
+}
+
 extension ASAttributedString {
     
     /// 属性
@@ -86,6 +90,10 @@ extension ASAttributedString.Attribute {
     public static func link(_ value: URL) -> Self {
         return .init(attributes: [.link: value])
     }
+    public static func macLink(_ value: URL) -> Self {
+        return .init(attributes: [.macLink: value])
+    }
+    
     
     public static func baselineOffset(_ value: CGFloat) -> Self {
         return .init(attributes: [.baselineOffset: value])

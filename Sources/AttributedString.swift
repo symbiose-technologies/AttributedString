@@ -48,6 +48,18 @@ public struct ASAttributedString {
     
     /// NSAttributedString
     
+    @available(iOS 16, macOS 12, *)
+    public init?(markdown: String,
+                 parseOptions: AttributedString.MarkdownParsingOptions = .init(
+                    allowsExtendedAttributes: true,
+                    interpretedSyntax: .full,
+                    failurePolicy: .returnPartiallyParsedIfPossible)) {
+        guard let attributed = try? NSAttributedString(markdown: markdown, options: parseOptions) else {
+            return nil
+        }
+                        self.value = attributed
+    }
+    
     public init(_ value: NSAttributedString) {
         self.value = value
     }

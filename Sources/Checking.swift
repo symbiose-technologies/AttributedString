@@ -20,16 +20,16 @@ import UIKit
 extension ASAttributedString {
         
     public enum Checking: Hashable {
-        /// 自定义范围
+        /// represents a custom range of characters within the attributed string
         case range(NSRange)
-        /// 正则表达式
+        /// represents a regular expression pattern that should be matched in the attributed string
         case regex(String)
         #if os(iOS) || os(macOS)
-        /// 动作
+        ///  represents an action that should be performed when the user interacts with a specific part of the attributed string (only available on iOS and macOS)
         case action
         #endif
         #if !os(watchOS)
-        /// 附件
+        /// represents an attachment that should be displayed as part of the attributed string (not available on watchOS)
         case attachment
         #endif
         case date
@@ -37,15 +37,16 @@ extension ASAttributedString {
         case address
         case phoneNumber
         case transitInformation
+        case macLink
     }
 }
 
 extension ASAttributedString.Checking {
     
     public enum Result {
-        /// 自定义范围
+        /// represents an attributed substring that corresponds to a custom range of characters in the original attributed string
         case range(NSAttributedString)
-        /// 正则表达式
+        /// represents an attributed substring that corresponds to a regular expression pattern that was matched in the original attributed string
         case regex(NSAttributedString)
         #if os(iOS) || os(macOS)
         case action([ASAttributedString.Action])
@@ -58,6 +59,7 @@ extension ASAttributedString.Checking {
         case address(Address)
         case phoneNumber(String)
         case transitInformation(TransitInformation)
+        case macLink(URL)
     }
 }
 
@@ -69,11 +71,11 @@ extension ASAttributedString.Checking {
         public typealias Trigger = ASAttributedString.Action.Trigger
         public typealias Highlight = ASAttributedString.Action.Highlight
         
-        /// 触发类型
+        /// represents the type of interaction that should trigger the action
         let trigger: Trigger
-        /// 高亮属性
+        /// represents an array of highlight properties that should be applied to the attributed string when the action is triggered.
         let highlights: [Highlight]
-        /// 触发回调
+        /// represents the closure that should be called when the action is triggered. The closure takes a Result argument, which represents the result of the check that was performed on the attributed string.
         let callback: (Result) -> Void
         
         public init(_ trigger: Trigger = .click, highlights: [Highlight] = .defalut, with callback: @escaping (Result) -> Void) {
@@ -119,7 +121,11 @@ extension ASAttributedStringWrapper {
 
 public extension Array where Element == ASAttributedString.Checking {
     
+    #if os(iOS) || os(macOS)
+    static var defalut: [ASAttributedString.Checking] = [.date, .link, .address, .phoneNumber, .transitInformation, .action, .macLink]
+    #else
     static var defalut: [ASAttributedString.Checking] = [.date, .link, .address, .phoneNumber, .transitInformation]
+    #endif
     
     static let empty: [ASAttributedString.Checking] = []
 }
@@ -165,9 +171,9 @@ extension ASAttributedString {
 
 extension ASAttributedString {
     
-    /// 匹配检查 (Key 不会出现覆盖情况, 优先级 range > action > regex > other)
-    /// - Parameter checkings: 检查类型
-    /// - Returns: 匹配结果 (范围, 检查类型, 检查结果)
+    /// Matching checks (keys will not override, with priority in range > action > regex > other)
+    /// - Parameter checkings: The checking types.
+    /// - Returns: The matching results (range, checking type, checking result).
     func matching(_ checkings: [Checking]) -> [NSRange: (Checking, Checking.Result)] {
         guard !checkings.isEmpty else {
             return [:]
@@ -231,13 +237,17 @@ extension ASAttributedString {
             #endif
             
             case .link:
-                // 优先获取Link属性的值
+                // Prioritize getting the value of the Link attribute
                 let links: [NSRange: URL] = value.get(.link)
                 for link in links where !contains(link.key) {
                     result[link.key] = (.link, .link(link.value))
                 }
                 fallthrough
-                
+            case .macLink:
+                let links: [NSRange: URL] = value.get(.macLink)
+                for link in links where !contains(link.key) {
+                    result[link.key] = (.macLink, .macLink(link.value))
+                }
             case .date, .address, .phoneNumber, .transitInformation:
                 guard let detector = try? NSDataDetector(types: NSTextCheckingAllTypes) else { return }
                 

@@ -15,22 +15,27 @@ private var NSEventMonitorKey: Void?
 private var NSTextFieldTouchedKey: Void?
 private var NSTextFieldActionsKey: Void?
 private var NSTextFieldObserversKey: Void?
+private var NSTextFieldMouseInsideKey: Void?
+
 
 extension NSTextField: ASAttributedStringCompatible {
     
 }
+
+
 
 extension ASAttributedStringWrapper where Base: NSTextField {
 
     public var string: ASAttributedString {
         get { base.touched?.0 ?? .init(base.attributedStringValue) }
         set {
-            // 判断当前是否在触摸状态, 内容是否发生了变化
+            // Determine if the current state is in touch and if the content has changed.
             if var current = base.touched, current.0.isContentEqual(to: newValue) {
                 current.0 = newValue
                 base.touched = current
                 
-                // 将当前的高亮属性覆盖到新文本中 替换显示的文本
+                // Overlay the current highlight attribute onto the new text
+                // Replace the displayed text.
                 let temp = NSMutableAttributedString(attributedString: newValue.value)
                 let ranges = current.1.keys.sorted(by: { $0.length > $1.length })
                 for range in ranges {
@@ -51,7 +56,7 @@ extension ASAttributedStringWrapper where Base: NSTextField {
                 ).value
             }
             
-            // 设置动作和手势
+            // Set actions and gestures.
             setupActions(newValue)
             setupGestureRecognizers()
         }
@@ -65,10 +70,10 @@ extension ASAttributedStringWrapper where Base: NSTextField {
 
 extension ASAttributedStringWrapper where Base: NSTextField {
     
-    /// 添加监听
+    /// Add listener.
     /// - Parameters:
-    ///   - checking: 检查类型
-    ///   - action: 检查动作
+    ///   - checking: Type of checking
+    ///   - action: Checking action
     public func observe(_ checking: Checking, with action: Checking.Action) {
         var temp = base.observers
         if var value = temp[checking] {
@@ -81,22 +86,22 @@ extension ASAttributedStringWrapper where Base: NSTextField {
         base.observers = temp
     }
     
-    /// 添加监听
+    /// Add listener
     /// - Parameters:
-    ///   - checking: 检查类型
-    ///   - highlights: 高亮样式
-    ///   - callback: 触发回调
+    ///   - checking: Type of checking
+    ///   - highlights: Highlight styles
+    ///   - callback: Callback triggered
     public func observe(_ checking: Checking,
                         highlights: [Highlight] = .defalut,
                         with callback: @escaping (Checking.Result) -> Void) {
         observe(checking, with: .init(.click, highlights: highlights, with: callback))
     }
     
-    /// 添加监听
+    /// Add listener
     /// - Parameters:
-    ///   - checkings: 检查类型
-    ///   - highlights: 高亮样式
-    ///   - callback: 触发回调
+    ///   - checkings: Types of checking
+    ///   - highlights: Highlight styles
+    ///   - callback: Callback triggered
     public func observe(_ checkings: [Checking] = .defalut,
                         highlights: [Highlight] = .defalut,
                         with callback: @escaping (Checking.Result) -> Void) {
@@ -106,19 +111,22 @@ extension ASAttributedStringWrapper where Base: NSTextField {
     }
     
 
-    /// 移除监听
-    /// - Parameter checking: 检查类型
+    /// Remove listener
+    /// - Parameter checking: Type of checking
     public func remove(checking: Checking) {
         base.observers.removeValue(forKey: checking)
     }
-    /// 移除监听
-    /// - Parameter checkings: 检查类型
+    
+    /// Remove listener
+    /// - Parameter checkings: Types of checking
     public func remove(checkings: [Checking]) {
         checkings.forEach { base.observers.removeValue(forKey: $0) }
     }
 }
 
 extension ASAttributedStringWrapper where Base: NSTextField {
+    
+    
     
     private(set) var gestures: [NSGestureRecognizer] {
         get { base.associated.get(&NSGestureRecognizerKey) ?? [] }
@@ -130,17 +138,17 @@ extension ASAttributedStringWrapper where Base: NSTextField {
         set { base.associated.set(retain: &NSEventMonitorKey, newValue) }
     }
     
-    /// 设置动作
+    /// Set actions
     private func setupActions(_ string: ASAttributedString?) {
-        // 清理原有动作记录
+        // Clear original action records
         base.actions = [:]
         
         guard let string = string else {
             return
         }
-        // 获取当前动作
+        // Get current actions
         base.actions = string.value.get(.action)
-        // 获取匹配检查 添加检查动作
+        // Get matching checking and add checking action
         let observers = base.observers
         string.matching(.init(observers.keys)).forEach { (range, checking) in
             let (type, result) = checking
@@ -169,7 +177,7 @@ extension ASAttributedStringWrapper where Base: NSTextField {
             }
         }
         
-        // 统一为所有动作增加handle闭包
+        // Add handle closure to all actions
         base.actions = base.actions.reduce(into: [:]) {
             let result: Action.Result = string.value.get($1.key)
             let actions: [Action] = $1.value.reduce(into: []) {
@@ -183,7 +191,7 @@ extension ASAttributedStringWrapper where Base: NSTextField {
         }
     }
     
-    /// 设置手势识别
+    /// Set gesture recognition
     private func setupGestureRecognizers() {
         gestures.forEach { base.removeGestureRecognizer($0) }
         gestures = []
@@ -206,6 +214,26 @@ extension ASAttributedStringWrapper where Base: NSTextField {
         monitors.forEach { NSEvent.removeMonitor($0) }
         monitors = []
         guard base.isActionEnabled else { return }
+//        if let monitor = NSEvent.addLocalMonitorForEvents(matching: .mouseEntered, handler: { (event) in
+//            print("[NSTextFieldExtension] mouseEntered")
+//            return event
+//        }) {
+//            monitors.append(monitor)
+//        }
+//        if let monitor = NSEvent.addLocalMonitorForEvents(matching: .mouseExited, handler: { (event) in
+//            print("[NSTextFieldExtension] mouseExited")
+//            return event
+//        }) {
+//            monitors.append(monitor)
+//        }
+        if let monitor = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved, handler: { (event) in
+            self.base.attributed_mouseMoved(with: event)
+            return event
+        }) {
+            monitors.append(monitor)
+        }
+        
+        
         if let monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown, handler: { (event) -> NSEvent? in
             self.base.attributed_mouseDown(with: event)
             return event
@@ -228,25 +256,48 @@ extension NSTextField {
     fileprivate typealias Highlight = ASAttributedString.Action.Highlight
     fileprivate typealias Observers = [Checking: [Checking.Action]]
     
-    /// 是否启用Action
+    /// Whether Action is enabled
     fileprivate var isActionEnabled: Bool {
         return !attributed.gestures.isEmpty && (!isEditable && !isSelectable)
     }
     
-    /// 触摸信息
+    var mouseInside: Bool {
+        get { associated.get(&NSTextFieldMouseInsideKey) ?? false }
+        set { associated.set(retain: &NSTextFieldMouseInsideKey, newValue) }
+        
+    }
+    
+    
+    /// Touch information
     fileprivate var touched: (ASAttributedString, [NSRange: [Action]])? {
         get { associated.get(&NSTextFieldTouchedKey) }
         set { associated.set(retain: &NSTextFieldTouchedKey, newValue) }
     }
-    /// 全部动作
+    /// All actions
     fileprivate var actions: [NSRange: [Action]] {
         get { associated.get(&NSTextFieldActionsKey) ?? [:] }
         set { associated.set(retain: &NSTextFieldActionsKey, newValue) }
     }
-    /// 监听信息
+    /// Observer information
     fileprivate var observers: Observers {
         get { associated.get(&NSTextFieldObserversKey) ?? [:] }
         set { associated.set(retain: &NSTextFieldObserversKey, newValue) }
+    }
+    
+    @objc
+    func attributed_mouseMoved(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        guard bounds.contains(point), window == event.window else {
+            if mouseInside {
+                mouseInside = false
+            }
+            return
+        }
+        if !mouseInside {
+            mouseInside = true
+        }
+        guard isActionEnabled else { return }
+        
     }
     
     @objc
@@ -257,9 +308,9 @@ extension NSTextField {
         let results = matching(point)
         guard !results.isEmpty else { return }
         let string = attributed.string
-        // 备份当前信息
+        // Backup current information
         touched = (string, results)
-        // 设置高亮样式
+        // Set highlight styles
         let ranges = results.keys.sorted(by: { $0.length > $1.length })
         for range in ranges {
             var temp: [NSAttributedString.Key: Any] = [:]
@@ -299,29 +350,29 @@ fileprivate extension NSTextField {
     func matching(_ point: CGPoint) -> [NSRange: [Action]] {
         let attributedString = ASAttributedString(attributedStringValue)
         
-        // 构建同步Label设置的TextKit
+        // Build TextKit settings synchronized with Label
         let textStorage = NSTextStorage(attributedString: attributedString.value)
         let textContainer = NSTextContainer(size: bounds.size)
         let layoutManager = NSLayoutManager()
         textContainer.lineBreakMode = lineBreakMode
         textContainer.lineFragmentPadding = 0.0
         textContainer.maximumNumberOfLines = usesSingleLineMode ? 1 : 0
-        layoutManager.usesFontLeading = false // 不使用字体的头 因为非系统字体会出现问题
+        layoutManager.usesFontLeading = false // Do not use the font header because non-system fonts may cause issues
         layoutManager.addTextContainer(textContainer)
         textStorage.addLayoutManager(layoutManager)
-        // 确保布局
+        // Ensure layout
         layoutManager.ensureLayout(for: textContainer)
         
-        // 获取字形下标
+        // Get glyph index
         var fraction: CGFloat = 0
         let glyphIndex = layoutManager.glyphIndex(for: point, in: textContainer, fractionOfDistanceThroughGlyph: &fraction)
-        // 获取字符下标
+        // Get character index
         let index = layoutManager.characterIndexForGlyph(at: glyphIndex)
-        // 通过字形距离判断是否在字形范围内
+        // Determine if the glyph is within range based on the distance through the glyph
         guard fraction > 0, fraction < 1 else {
             return [:]
         }
-        // 获取点击的字符串范围和回调事件
+        // Get range of string tapped and associated callback events
         let ranges = actions.keys.filter({ $0.contains(index) })
         return ranges.reduce(into: [:]) {
             $0[$1] = actions[$1]

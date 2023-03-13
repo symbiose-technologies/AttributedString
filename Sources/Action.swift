@@ -71,9 +71,9 @@ public extension Array where Element == ASAttributedString.Action.Highlight {
 extension ASAttributedString.Action {
     
     public enum Trigger: Hashable {
-        /// 单击  default
+        /// Single click (default)
         case click
-        /// 按住
+        /// Press and hold
         case press
     }
     
