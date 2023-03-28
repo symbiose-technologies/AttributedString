@@ -258,7 +258,8 @@ extension NSTextField {
     
     /// Whether Action is enabled
     fileprivate var isActionEnabled: Bool {
-        return !attributed.gestures.isEmpty && (!isEditable && !isSelectable)
+        return !attributed.gestures.isEmpty && (!isEditable)
+//        return !attributed.gestures.isEmpty && (!isEditable && !isSelectable)
     }
     
     var mouseInside: Bool {
